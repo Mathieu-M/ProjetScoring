@@ -152,3 +152,69 @@ tauxmc <- function(x,y){
   taux <- 1.0-sum(diag(table(x,y)))/length(x)
   cat("Taux de mal classés: ",taux)
 }
+
+
+# Discretization ----------------------------------------------------------
+
+#
+# This function disretize a continuous variable and add the new discretized variable to the data set.
+# @param data: the data in which is the variable to be discretized and the target variable.
+# This function uses the 'smbinning' function.
+# @param x: the variable to be discretized. Argument used in 'smbinning'.
+# @param y: the target variable. Argument used in 'smbinning'.
+# @param p: Percentage of records per bin. Default 5% (0.05). This parameter only accepts
+# values greater that 0.00 (0%) and lower than 0.5 (50%). Argument used in 'smbinning'.
+# @param out: the name of the variable to be added to the data set.
+# @return the data set with the categorized variable.
+# 
+fdiscretize <- function(data,x,y,p,out){
+  names <- names(data)
+  var_discrete_cuts <- smbinning(df=data,y=deparse(substitute(y)),x=deparse(substitute(x)),p=p)$cuts
+  var_discrete <- cut(x,breaks=c(0,var_discrete_cuts,Inf),
+                      right=FALSE,labels=0:length(var_discrete_cuts))
+  if(any.na(x)){
+    levels(var_discrete) <- c(0:length(var_discrete_cuts),"NA")
+  }
+  data <- cbind(data,var_discrete)
+  names(data)[ncol(data)] <- out
+  return(data)
+}
+
+
+# Data train and data test ------------------------------------------------
+
+# https://rstudio-pubs-static.s3.amazonaws.com/50943_1fc4d7b7c9924277b8b67b6ce15f393a.html
+
+strat_sample <- function(data, gr_variab, tr_percent, thresh_test = 0, seed) {
+  stopifnot(tr_percent > 0 & tr_percent < 1)
+  if(require(dplyr) & require(magrittr)) {
+    if(!missing(seed)) set.seed(seed)
+    names0 <- names(data)
+    gr_variab <- which(names0 == gr_variab)
+    names(data) <- make.unique(c("n", "tRows", "SET", names0))[-(1:3)]
+    gr_variab <- names(data)[gr_variab]        
+    data %<>% 
+      sample_frac %>% 
+      group_by_(gr_variab) %>%
+      mutate(n = n(), tRows = round(tr_percent * n))
+    with(data, if(any(n - tRows < thresh_test))        
+      warning("Zero or too few observations in one or more groups"))
+    data %<>%
+      mutate(SET = ifelse(row_number() <= tRows, "Train", "Test")) %>%
+      select(-n, -tRows) %>%
+      ungroup
+    names(data) <- make.unique(c(names0, "SET"))
+    data
+  }
+}
+
+extract_set <- function(data, whichSET) {
+  stopifnot(is.element(whichSET, c("Train", "Test")))
+  if(require(dplyr)) {
+    variab <- names(data)[ncol(data)]
+    condit <- get(variab, data) == whichSET
+    data %>%
+      filter_(~ condit) %>%
+      select_(paste0("-", variab)) 
+  }
+} 
