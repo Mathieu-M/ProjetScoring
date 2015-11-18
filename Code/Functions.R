@@ -1,5 +1,4 @@
 
-
 # Fonctions basiques pour les tests -----------------------------------------------
 
 any.negative <- function(x){
@@ -156,24 +155,32 @@ tauxmc <- function(x,y){
 
 # Discretization ----------------------------------------------------------
 
-#
-# This function disretize a continuous variable and add the new discretized variable to the data set.
-# @param data: the data in which is the variable to be discretized and the target variable.
-# This function uses the 'smbinning' function.
-# @param x: the variable to be discretized. Argument used in 'smbinning'.
-# @param y: the target variable. Argument used in 'smbinning'.
-# @param p: Percentage of records per bin. Default 5% (0.05). This parameter only accepts
-# values greater that 0.00 (0%) and lower than 0.5 (50%). Argument used in 'smbinning'.
-# @param out: the name of the variable to be added to the data set.
-# @return the data set with the categorized variable.
-# 
-fdiscretize <- function(data,x,y,p,out){
+#'
+#' This function disretize a continuous variable and add the new discretized variable to the data set.
+#' It is possible to give cut points to the function so that it does not compute the 'smbinning' function.
+#' @param data: the data in which is the variable to be discretized and the target variable.
+#' This function uses the 'smbinning' function.
+#' @param x: the variable to be discretized. Argument used in 'smbinning'.
+#' @param y: the target variable. Argument used in 'smbinning'.
+#' @param p: percentage of records per bin. Default 5% (0.05). This parameter only accepts
+#' values greater that 0.00 (0%) and lower than 0.5 (50%). Argument used in 'smbinning'.
+#' @param out: the name of the variable to be added to the data set.
+#' @param cuts: cut points used to discretize the variable. If missing the cut points will be obtained
+#' with the 'smbining' function.
+#' @return the data set with the categorized variable.
+#' 
+fdiscretize <- function(data,x,y,p=0.05,out,cuts=NULL){
   names <- names(data)
-  var_discrete_cuts <- smbinning(df=data,y=deparse(substitute(y)),x=deparse(substitute(x)),p=p)$cuts
-  var_discrete <- cut(x,breaks=c(0,var_discrete_cuts,Inf),
-                      right=FALSE,labels=0:length(var_discrete_cuts))
+  if(is.null(cuts)){
+    cuts <- smbinning(df=data,y=deparse(substitute(y)),x=deparse(substitute(x)),p=p)$cuts
+  }
+  if(class(cuts)!="numeric"){
+    stop("'cuts' must be numeric")
+  }
+  var_discrete <- cut(x,breaks=c(-Inf,cuts,Inf),
+                      right=FALSE,labels=0:length(cuts))
   if(any.na(x)){
-    levels(var_discrete) <- c(0:length(var_discrete_cuts),"NA")
+    levels(var_discrete) <- c(0:length(cuts),"NA")
   }
   data <- cbind(data,var_discrete)
   names(data)[ncol(data)] <- out
