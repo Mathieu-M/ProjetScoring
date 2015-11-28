@@ -164,26 +164,32 @@ tauxmc <- function(x,y){
 #' @param y: the target variable. Argument used in 'smbinning'.
 #' @param p: percentage of records per bin. Default 5% (0.05). This parameter only accepts
 #' values greater that 0.00 (0%) and lower than 0.5 (50%). Argument used in 'smbinning'.
-#' @param out: the name of the variable to be added to the data set.
-#' @param cuts: cut points used to discretize the variable. If missing the cut points will be obtained
-#' with the 'smbining' function.
+#' @param out: the name of the variable to be added to the data set. Must be character.
+#' @param ivout: an object generated after smbinning. If missing the 'smbinning' function will be performed.
 #' @return the data set with the categorized variable.
 #' 
-fdiscretize <- function(data,x,y,p=0.05,out,cuts=NULL){
-  names <- names(data)
-  if(is.null(cuts)){
-    cuts <- smbinning(df=data,y=deparse(substitute(y)),x=deparse(substitute(x)),p=p)$cuts
+fdiscretize <- function(data,x,y,p=0.05,out,ivout=NULL){
+  if(class(data)[1]!="data.frame"){
+    data <- as.data.frame(data)
   }
-  if(class(cuts)!="numeric"){
-    stop("'cuts' must be numeric")
+  if(class(out)!="character"){
+    stop("'out' must be a character.")
   }
-  var_discrete <- cut(x,breaks=c(-Inf,cuts,Inf),
-                      right=FALSE,labels=0:length(cuts))
+  ind <- ncol(data)
+  if(is.null(ivout)){
+    ivout <- smbinning(df=data,y=deparse(substitute(y)),x=deparse(substitute(x)),p=p)
+  }
+  if(length(ivout)==1){
+    stop("'smbinning' did not create cut points.")
+  }
+  data <- smbinning.gen(data,ivout,out)
   if(any.na(x)){
-    levels(var_discrete) <- c(0:length(cuts),"NA")
+    levels <- 0:(length(ivout$cuts)+1)
+  } else{
+    levels <- 0:length(ivout$cuts)
   }
-  data <- cbind(data,var_discrete)
-  names(data)[ncol(data)] <- out
+  data[,out] <- as.factor(data[,out])
+  levels(data[,ind+1]) <- levels
   return(data)
 }
 
@@ -207,49 +213,12 @@ fsmbinning.plot <- function(x,sub=""){
 #' @param cuts: the cut points.
 #' @return the data frame with the new row. The cut points are separated by "_". 
 #' 
-fcutpoints <- function(cuts,var){
-  cut <- paste(cuts,collapse="_")
-  variable <- deparse(substitute(var))
-  cutpoints <- rbind(cutpoints,data.frame(Variable=variable,Cuts=cut))
+fcutpoints <- function(Cuts,var){
+  cut <- paste(Cuts,collapse="_")
+  cutpoints <- rbind(cutpoints,data.frame(Variable=var,Cuts=cut))
   return(cutpoints)
 }
 
 
 
-# Data train and data test ------------------------------------------------
 
-# https://rstudio-pubs-static.s3.amazonaws.com/50943_1fc4d7b7c9924277b8b67b6ce15f393a.html
-
-strat_sample <- function(data, gr_variab, tr_percent, thresh_test = 0, seed) {
-  stopifnot(tr_percent > 0 & tr_percent < 1)
-  if(require(dplyr) & require(magrittr)) {
-    if(!missing(seed)) set.seed(seed)
-    names0 <- names(data)
-    gr_variab <- which(names0 == gr_variab)
-    names(data) <- make.unique(c("n", "tRows", "SET", names0))[-(1:3)]
-    gr_variab <- names(data)[gr_variab]        
-    data %<>% 
-      sample_frac %>% 
-      group_by_(gr_variab) %>%
-      mutate(n = n(), tRows = round(tr_percent * n))
-    with(data, if(any(n - tRows < thresh_test))        
-      warning("Zero or too few observations in one or more groups"))
-    data %<>%
-      mutate(SET = ifelse(row_number() <= tRows, "Train", "Test")) %>%
-      select(-n, -tRows) %>%
-      ungroup
-    names(data) <- make.unique(c(names0, "SET"))
-    data
-  }
-}
-
-extract_set <- function(data, whichSET) {
-  stopifnot(is.element(whichSET, c("Train", "Test")))
-  if(require(dplyr)) {
-    variab <- names(data)[ncol(data)]
-    condit <- get(variab, data) == whichSET
-    data %>%
-      filter_(~ condit) %>%
-      select_(paste0("-", variab)) 
-  }
-} 
